@@ -1,0 +1,22 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # 测试只依赖 Node 内置模块（zod / storage-domain 是带降级的动态 import），
+      # 所以不需要 npm install，跑起来是秒级的。
+      - run: node --version
+      - run: npm test

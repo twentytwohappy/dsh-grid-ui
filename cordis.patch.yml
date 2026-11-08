@@ -1,0 +1,16 @@
+# ============================================================================
+# dsh-grid-ui —— DSH bundle patch
+# ============================================================================
+# 这是插件的「挂载声明」。DSH 启动时按 profile 的插件树叠加各 bundle 的 patch，
+# 本文件把 dsh-grid-ui 插入 Host 根作用域（root scope），于是它能拿到
+# `webServer`（注入前端脚本 + 注册 HTTP 路由）和 `tools`（向模型注册工具）。
+#
+# 安装方式（推荐，由 plugin_manager.install_bundle 完成）：
+#   dsh plugin --profile web add dsh-grid-ui
+# 本地开发安装：
+#   dsh plugin --profile web add link:<本目录绝对路径>
+# ============================================================================
+
+- insert:
+    - id: dsh-grid-ui
+      name: dsh-grid-ui

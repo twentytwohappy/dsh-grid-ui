@@ -1,0 +1,46 @@
+{
+  "name": "dsh-grid-ui",
+  "version": "0.7.7",
+  "description": "DSH 自定义 UI 插件：在界面上覆盖 200x200 逻辑网格，由 AI 通过工具在指定格点区域渲染任意可交互 HTML 页面。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "grid",
+    "ui",
+    "overlay"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "host/index.js",
+  "exports": {
+    ".": "./host/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "host",
+    "client",
+    "styles",
+    "demo",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test/smoke.mjs && node test/cookies.mjs && node test/host-smoke.mjs && node test/storage-real.mjs && node test/persist-e2e.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4"
+  },
+  "license": "MIT"
+}

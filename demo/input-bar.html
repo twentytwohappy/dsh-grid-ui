@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+    color: #0f172a;
+    background: linear-gradient(180deg, #ffffff 0%, #f6f8ff 100%);
+    border-radius: 10px;
+  }
+  .bar {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px 7px;
+    border-radius: 10px;
+    border: 1px solid #dbe3ff;
+    box-shadow: inset 0 1px 0 #fff;
+    overflow: hidden;
+  }
+
+  /* ---- 图片预览条 ---- */
+  .thumbs { display: none; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .thumbs.on { display: flex; }
+  .thumb { position: relative; flex: 0 0 auto; }
+  .thumb img { display: block; width: 44px; height: 44px; object-fit: cover; border-radius: 7px; border: 1px solid #c7d2fe; }
+  .thumb button {
+    position: absolute; top: -5px; right: -5px; width: 15px; height: 15px; padding: 0;
+    border: 0; border-radius: 50%; background: #ef4444; color: #fff;
+    font: 11px/15px system-ui; cursor: pointer;
+  }
+
+  /* ---- 输入区 ---- */
+  textarea {
+    flex: 1 1 auto; min-height: 30px; max-height: 72px; resize: none;
+    padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 8px;
+    font: inherit; line-height: 1.4; background: #fff; color: inherit;
+    outline: none; transition: border-color .15s;
+  }
+  textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, .12); }
+
+  /* ---- 工具条 ---- */
+  .row { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+    padding: 2px 6px 2px 7px; border-radius: 999px;
+    background: #eef2ff; border: 1px solid #dbe3ff; color: #4338ca;
+    font-size: 11px; white-space: nowrap;
+  }
+  .pill span { color: #6366f1; opacity: .85; }
+  .pill select {
+    max-width: 148px; border: 0; background: transparent; color: inherit;
+    font: inherit; outline: none; cursor: pointer; padding: 1px 0;
+  }
+  .pill select:disabled { opacity: .45; cursor: default; }
+  .pill.grow { flex: 1 1 auto; min-width: 0; }
+  .pill.grow select { max-width: none; width: 100%; }
+
+  button.icon {
+    flex: 0 0 auto; width: 26px; height: 26px; padding: 0; border-radius: 7px;
+    border: 1px solid #dbe3ff; background: #fff; color: #4f46e5;
+    font-size: 13px; line-height: 1; cursor: pointer;
+  }
+  button.icon:hover { background: #eef2ff; }
+
+  button.send {
+    flex: 0 0 auto; height: 26px; padding: 0 14px; border: 0; border-radius: 7px;
+    background: #4f46e5; color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+    transition: background .15s;
+  }
+  button.send:hover { background: #4338ca; }
+  button.send:disabled { background: #a5b4fc; cursor: default; }
+
+  .hint {
+    flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap;
+    text-overflow: ellipsis; font-size: 11px; color: #64748b; text-align: right;
+  }
+  .hint.err { color: #dc2626; }
+  .hint.ok { color: #059669; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="thumbs" id="thumbs"></div>
+
+  <textarea id="prompt" rows="1" placeholder="输入提示词，Enter 发送 · Shift+Enter 换行 · 可直接粘贴截图"></textarea>
+
+  <div class="row">
+    <label class="pill" title="权限预设（沙箱 / 审批策略）">
+      <span>权限</span><select id="permission"><option>加载中…</option></select>
+    </label>
+    <label class="pill grow" title="模型">
+      <span>模型</span><select id="model"><option>加载中…</option></select>
+    </label>
+    <label class="pill" title="思考强度">
+      <span>强度</span><select id="effort"><option>—</option></select>
+    </label>
+
+    <button class="icon" id="pick" type="button" title="上传图片（可多选 / 可粘贴）">📎</button>
+    <input id="file" type="file" accept="image/*" multiple hidden>
+
+    <span class="hint" id="hint"></span>
+    <button class="send" id="send" type="button">发送</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var thumbsEl = document.getElementById('thumbs');
+  var promptEl = document.getElementById('prompt');
+  var permissionEl = document.getElementById('permission');
+  var modelEl = document.getElementById('model');
+  var effortEl = document.getElementById('effort');
+  var fileEl = document.getElementById('file');
+  var pickEl = document.getElementById('pick');
+  var sendEl = document.getElementById('send');
+  var hintEl = document.getElementById('hint');
+
+  /** 待发送的图片：{data(裸 base64), mediaType, name, url(预览)} */
+  var images = [];
+  /** 最近一次 dsh 状态 */
+  var state = null;
+  /** 正在等待上一条 action 的结果 */
+  var pending = false;
+
+  function setHint(text, kind) {
+    hintEl.textContent = text || '';
+    hintEl.className = 'hint' + (kind ? ' ' + kind : '');
+  }
+
+  // ---------------------------------------------------------------- 图片 --
+  function renderThumbs() {
+    thumbsEl.textContent = '';
+    thumbsEl.classList.toggle('on', images.length > 0);
+    images.forEach(function (image, index) {
+      var box = document.createElement('div');
+      box.className = 'thumb';
+      var img = document.createElement('img');
+      img.src = image.url;
+      img.alt = image.name || 'image';
+      var kill = document.createElement('button');
+      kill.type = 'button';
+      kill.textContent = '×';
+      kill.title = '移除';
+      kill.addEventListener('click', function () {
+        images.splice(index, 1);
+        renderThumbs();
+      });
+      box.appendChild(img);
+      box.appendChild(kill);
+      thumbsEl.appendChild(box);
+    });
+  }
+
+  function addFiles(files) {
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) return;
+    list.forEach(function (file) {
+      if (!file || !/^image\//.test(file.type)) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var url = String(reader.result || '');
+        var comma = url.indexOf(',');
+        if (comma < 0) return;
+        images.push({
+          data: url.slice(comma + 1), // 裸 base64，Host 侧还要再去一次前缀
+          mediaType: file.type,
+          name: file.name,
+          url: url
+        });
+        renderThumbs();
+        setHint(images.length + ' 张图片待发送');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  pickEl.addEventListener('click', function () {
+    fileEl.click();
+  });
+  fileEl.addEventListener('change', function () {
+    addFiles(fileEl.files);
+    fileEl.value = '';
+  });
+
+  // 直接粘贴截图
+  document.addEventListener('paste', function (event) {
+    var items = event.clipboardData && event.clipboardData.items;
+    if (!items) return;
+    var files = [];
+    for (var i = 0; i < items.length; i += 1) {
+      if (items[i].kind === 'file') {
+        var file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length) {
+      event.preventDefault();
+      addFiles(files);
+    }
+  });
+
+  // ---------------------------------------------------------------- 发送 --
+  function send() {
+    var text = promptEl.value;
+    if (pending) return;
+    if (text.trim() === '' && images.length === 0) {
+      setHint('写点什么，或者加一张图片', 'err');
+      return;
+    }
+    pending = true;
+    sendEl.disabled = true;
+    setHint('发送中…');
+    dsh.sendMessage(
+      text,
+      images.map(function (image) {
+        return { data: image.data, mediaType: image.mediaType, name: image.name };
+      })
+    );
+    promptEl.value = '';
+    images = [];
+    renderThumbs();
+  }
+
+  sendEl.addEventListener('click', send);
+  promptEl.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      send();
+    }
+  });
+
+  // 输入框随内容长高（最多 3 行左右，再多就内部滚动）
+  promptEl.addEventListener('input', function () {
+    promptEl.style.height = 'auto';
+    promptEl.style.height = Math.min(72, promptEl.scrollHeight) + 'px';
+  });
+
+  // ------------------------------------------------------------ 下拉选择 --
+  function fillPermission(catalog, currentValue) {
+    var options = (catalog && catalog.permissions) || [];
+    if (!options.length) {
+      permissionEl.innerHTML = '<option value="">默认</option>';
+      return;
+    }
+    permissionEl.innerHTML = '';
+    options.forEach(function (option) {
+      var node = document.createElement('option');
+      node.value = option.value;
+      node.textContent = option.name || option.value;
+      if (option.description) node.title = option.description;
+      permissionEl.appendChild(node);
+    });
+    if (currentValue) permissionEl.value = currentValue;
+  }
+
+  function fillModels(catalog, current) {
+    var models = (catalog && catalog.models) || [];
+    if (!models.length) {
+      modelEl.innerHTML = '<option value="">（无可用模型）</option>';
+      return;
+    }
+    var groups = {};
+    models.forEach(function (model) {
+      (groups[model.provider] = groups[model.provider] || []).push(model);
+    });
+    modelEl.innerHTML = '';
+    Object.keys(groups).forEach(function (provider) {
+      var group = document.createElement('optgroup');
+      group.label = provider;
+      groups[provider].forEach(function (model) {
+        var node = document.createElement('option');
+        node.value = provider + '\u0000' + model.id;
+        node.textContent = model.name || model.id;
+        if (model.description) node.title = model.description;
+        group.appendChild(node);
+      });
+      modelEl.appendChild(group);
+    });
+    if (current && current.provider && current.model) {
+      modelEl.value = current.provider + '\u0000' + current.model;
+    }
+  }
+
+  function fillEfforts(efforts, currentValue) {
+    var list = Array.isArray(efforts) ? efforts : [];
+    if (!list.length) {
+      effortEl.innerHTML = '<option value="">—</option>';
+      effortEl.disabled = true;
+      return;
+    }
+    effortEl.disabled = false;
+    effortEl.innerHTML = '';
+    list.forEach(function (effort) {
+      var node = document.createElement('option');
+      node.value = effort.id;
+      node.textContent = effort.name || effort.id;
+      effortEl.appendChild(node);
+    });
+    if (currentValue) effortEl.value = currentValue;
+  }
+
+  permissionEl.addEventListener('change', function () {
+    if (permissionEl.value) dsh.setPermission(permissionEl.value);
+  });
+
+  modelEl.addEventListener('change', function () {
+    var parts = String(modelEl.value).split('\u0000');
+    if (parts.length === 2 && parts[0] && parts[1]) dsh.setModel(parts[0], parts[1]);
+  });
+
+  effortEl.addEventListener('change', function () {
+    if (effortEl.value) dsh.setThinkingLevel(effortEl.value);
+  });
+
+  // ---------------------------------------------------------------- 状态 --
+  var lastCatalogKey = '';
+
+  dsh.onState(function (next) {
+    state = next || {};
+
+    // 目录：只在变化时重建，避免打断用户正在做的选择
+    var catalog = state.catalog;
+    var key = catalog ? JSON.stringify([catalog.models.length, catalog.permissions.length, catalog.defaultPreset]) : '';
+    if (catalog && key !== lastCatalogKey) {
+      lastCatalogKey = key;
+      fillPermission(catalog, state.permission);
+      fillModels(catalog, state.activeModel);
+    }
+    if (state.permission) permissionEl.value = state.permission;
+    if (state.activeModel) modelEl.value = state.activeModel.provider + '\u0000' + state.activeModel.model;
+    fillEfforts(state.efforts, state.thinkingLevel);
+
+    // action 结果
+    if (state.lastAction) {
+      pending = false;
+      sendEl.disabled = false;
+      if (state.lastAction.ok) {
+        if (state.lastError) setHint(state.lastError, 'err');
+        else if (state.lastAction.action === 'send_message') setHint('已发送 ✓', 'ok');
+        else setHint('');
+      } else {
+        setHint(state.lastError || '操作失败', 'err');
+      }
+    }
+
+    if (!state.sessionId) setHint('未检测到会话，请先在 DSH 里打开一个会话', 'err');
+  });
+
+  // 首次拉取
+  dsh.getState();
+  setHint('就绪');
+})();
+</script>
+</body>
+</html>

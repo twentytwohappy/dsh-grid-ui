@@ -1,0 +1,7 @@
+# 统一换行，避免 Windows 上 CRLF 警告与 diff 噪音
+* text=auto eol=lf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.ico binary
