@@ -1,6 +1,5 @@
-# 依赖
+# 依赖（package-lock.json 要提交，保证 CI 装到同一套版本）
 node_modules/
-package-lock.json
 
 # 日志与临时文件
 *.log

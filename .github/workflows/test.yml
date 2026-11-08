@@ -9,6 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node: [22, 24]
     steps:
@@ -16,7 +17,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      # 测试只依赖 Node 内置模块（zod / storage-domain 是带降级的动态 import），
-      # 所以不需要 npm install，跑起来是秒级的。
-      - run: node --version
-      - run: npm test
+      - name: Node 版本
+        run: node --version
+      # 装上 zod / storage-domain / storage-json，让两个「真实依赖」测试真跑
+      # （找不到依赖时它们会优雅跳过，所以这步失败也不至于把 CI 卡死）。
+      - name: 装依赖
+        run: npm install --no-audit --no-fund
+      - name: 跑测试
+        run: npm test

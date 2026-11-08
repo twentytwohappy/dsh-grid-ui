@@ -42,6 +42,9 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4"
   },
+  "devDependencies": {
+    "@deepseek-ai/dsh-storage-json": "0.2.0-rc.2"
+  },
   "author": "twentytwohappy <twentytwohappy@126.com>",
   "repository": {
     "type": "git",

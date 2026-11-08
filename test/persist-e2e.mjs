@@ -17,26 +17,80 @@
  * 运行：node test/persist-e2e.mjs
  */
 
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-const APP_DIR = process.env.DSH_APP_DIR || 'E:/PCL/dsh/DSH Desktop/resources/app';
-const MODULES = path.join(APP_DIR, 'node_modules');
+// 找一份装着真实依赖的 DSH 安装目录；找不到就跳过（CI / 别人的机器上没有这个路径）。
+const APP_DIR = (() => {
+  const candidates = [
+    process.env.DSH_APP_DIR,
+    'E:/PCL/dsh/DSH Desktop/resources/app',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs/DSH/resources/app'),
+  ];
+  for (const dir of candidates) {
+    if (!dir) continue;
+    try {
+      if (existsSync(path.join(dir, 'node_modules', '@deepseek-ai', 'dsh-storage-domain'))) return dir;
+    } catch {}
+  }
+  return null;
+})();
+
+if (!APP_DIR) {
+  console.log('\npersist-e2e —— 跳过：找不到 DSH 安装目录（设置 DSH_APP_DIR 可启用端到端持久化校验）\n');
+  process.exit(0);
+}
+
 const DOMAIN_FILE = 'dsh_grid_ui.json';
 const STATE_ROUTE = '/dsh-grid-ui/state';
 
-const pkg = (name) => pathToFileURL(path.join(MODULES, '@deepseek-ai', name, 'lib', 'index.js')).href;
-const storageDomain = await import(pkg('dsh-storage-domain'));
-const { JsonStorageBackend } = await import(pkg('dsh-storage-json'));
+// 依赖来源：优先 DSH 安装目录（与运行期同一份包），其次项目自己的 node_modules
+// （CI 里 `npm install` 之后就有）。两处都找不到就跳过。
+const projectRequire = createRequire(import.meta.url);
+const appRequire = APP_DIR ? createRequire(path.join(APP_DIR, 'node_modules', 'noop.js')) : null;
+
+function requireFrom(specifier) {
+  if (appRequire) {
+    try {
+      return appRequire(specifier);
+    } catch {}
+  }
+  return projectRequire(specifier);
+}
+
+function importFrom(specifier) {
+  if (appRequire) {
+    try {
+      return import(pathToFileURL(appRequire.resolve(specifier)).href);
+    } catch {}
+  }
+  return import(projectRequire.resolve(specifier));
+}
+
+let storageDomain;
+let JsonStorageBackend;
+let zod;
+try {
+  storageDomain = await importFrom('@deepseek-ai/dsh-storage-domain');
+  ({ JsonStorageBackend } = await importFrom('@deepseek-ai/dsh-storage-json'));
+  zod = requireFrom('zod');
+} catch (error) {
+  console.log(
+    `\npersist-e2e —— 跳过：找不到 @deepseek-ai/dsh-storage-domain / dsh-storage-json\n` +
+      `  （${error instanceof Error ? error.message : String(error)}）\n` +
+      `  在项目里执行 npm install，或设置 DSH_APP_DIR 指向 DSH 安装目录。\n`,
+  );
+  process.exit(0);
+}
+
 const { DomainFacility } = storageDomain;
 
 // zod 必须与 storage-domain 内部用的是同一个实例（schema 的 instanceof 判断），
-// 所以从 DSH 安装目录解析；然后注入给 host/store.js 的惰性依赖加载器。
-const appRequire = createRequire(path.join(MODULES, 'noop.js'));
-const zod = appRequire('zod');
+// 所以从同一处解析；然后注入给 host/store.js 的惰性依赖加载器。
 globalThis.__DSH_GRID_UI_DEPS__ = { zod, '@deepseek-ai/dsh-storage-domain': storageDomain };
 
 const { apply } = await import('../host/index.js');
