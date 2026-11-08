@@ -61,11 +61,56 @@
 
 ### 2.1 安装
 
+插件有三种装法，挑一个能用的：
+
+#### 方式 A：从 GitHub 直接装（推荐 · 目前走这条）
+
+前提：本机有 `git`（`git --version` 能出版本号）。没有就装 [Git for Windows](https://git-scm.com/download/win)，装完**重开一个终端窗口**（PATH 才会更新）。
+
+在 DSH 的**插件面板**里点「安装」，把下面这行粘进去：
+
+```
+github:twentytwohappy/dsh-grid-ui
+```
+
+或者用命令行（`<profile>` 换成你在用的 profile，桌面版一般是 `desktop`）：
+
+```bash
+dsh plugin --profile desktop add github:twentytwohappy/dsh-grid-ui
+```
+
+DSH 底层用 npm 安装，所以 npm 认的 spec 全都可用：
+
+| 写法 | 含义 |
+|---|---|
+| `github:twentytwohappy/dsh-grid-ui` | 从 GitHub 拉最新 main |
+| `github:twentytwohappy/dsh-grid-ui#v0.7.7` | 锁定某个 tag / 分支 / commit |
+| `git+https://github.com/twentytwohappy/dsh-grid-ui.git` | 完整 git 地址 |
+| `link:C:\path\to\dsh-grid-ui` | 本地目录软链（开发用） |
+
+> **国内网络提示**：GitHub 拉取偶尔会卡住。如果失败，给 git 配代理（把端口换成你自己的）：
+> ```bash
+> git config --global https.proxy http://127.0.0.1:7897
+> ```
+
+#### 方式 B：npm（发布到 npm 之后可用）
+
+```bash
+dsh plugin --profile desktop add dsh-grid-ui
+```
+
+#### 方式 C：本地开发
+
 ```bash
 dsh plugin --profile desktop add link:C:\path\to\dsh-grid-ui
 ```
 
-装完**刷新页面**（F5）——overlay 是通过 `webServer.tapIndex` 注入首页 HTML 的，只在新一次渲染时生效。
+#### 装完必做
+
+1. **重启 DSH Desktop** —— `host/` 是 ESM 模块，热重载不会重新导入，必须整个应用重开
+2. **刷新页面**（F5 / Ctrl+R）—— overlay 是通过 `webServer.tapIndex` 注入首页 HTML 的，只在新一次渲染时生效
+
+> 只想改 `client/` 或 `styles/` 的话，不用重启应用，F5 就够。
 
 ### 2.2 三件套
 
