@@ -13,12 +13,33 @@
  *   DSH_APP_DIR=<app dir> node test/storage-real.mjs
  */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildDomainSpec } from '../host/store.js';
 
-const APP_DIR = process.env.DSH_APP_DIR || 'E:/PCL/dsh/DSH Desktop/resources/app';
+// 找一份装着真实依赖的 DSH 安装目录；找不到就跳过（CI / 别人的机器上没有这个路径）。
+const APP_DIR = (() => {
+  const candidates = [
+    process.env.DSH_APP_DIR,
+    'E:/PCL/dsh/DSH Desktop/resources/app',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs/DSH/resources/app'),
+  ];
+  for (const dir of candidates) {
+    if (!dir) continue;
+    try {
+      if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
+    } catch {}
+  }
+  return null;
+})();
+
+if (!APP_DIR) {
+  console.log('\nstorage-real —— 跳过：找不到 DSH 安装目录（设置 DSH_APP_DIR 可启用真实依赖校验）\n');
+  process.exit(0);
+}
+
 const requireFromApp = createRequire(path.join(APP_DIR, 'package.json'));
 
 const load = async (specifier) => {
@@ -41,8 +62,18 @@ const test = (name, fn) => {
 
 console.log(`\nstorage-real —— 真实 zod + dsh-storage-domain（${APP_DIR}）\n`);
 
-const { z } = await load('zod');
-const domainModule = await load('@deepseek-ai/dsh-storage-domain');
+let z;
+let domainModule;
+try {
+  ({ z } = await load('zod'));
+  domainModule = await load('@deepseek-ai/dsh-storage-domain');
+} catch (error) {
+  console.log(
+    `\nstorage-real —— 跳过：${APP_DIR} 里找不到 zod 或 dsh-storage-domain\n` +
+      `  （${error instanceof Error ? error.message : String(error)}）\n`,
+  );
+  process.exit(0);
+}
 const { descriptorOf } = domainModule;
 
 const spec = buildDomainSpec(z, domainModule);
