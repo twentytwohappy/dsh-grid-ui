@@ -1,5 +1,8 @@
 # dsh-grid-ui
 
+[![test](https://github.com/twentytwohappy/dsh-grid-ui/actions/workflows/test.yml/badge.svg)](https://github.com/twentytwohappy/dsh-grid-ui/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-111113.svg)](LICENSE)
+
 ![dsh-grid-ui](covers/cover_C.png)
 
 让 DSH 的界面变成一块可以任意捏的液态画布：AI 通过工具在 **200 × 200 逻辑网格**上开窗、翻页、弹面板，窗口里可以是任意 HTML，也可以直接嵌一个网址；页面里的 JS 又能反过来驱动 DSH——切模型、调思考强度、改权限、发消息（还能带截图当附件）。
