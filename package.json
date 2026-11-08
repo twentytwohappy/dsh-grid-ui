@@ -42,5 +42,14 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4"
   },
+  "author": "twentytwohappy <twentytwohappy@126.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/twentytwohappy/dsh-grid-ui.git"
+  },
+  "homepage": "https://github.com/twentytwohappy/dsh-grid-ui#readme",
+  "bugs": {
+    "url": "https://github.com/twentytwohappy/dsh-grid-ui/issues"
+  },
   "license": "MIT"
 }
